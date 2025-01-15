@@ -1,0 +1,325 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id              String            @id @default(cuid())
+  name            String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  bookings        Booking[]
+  chargeables     Chargeable[]
+  invoices        Invoice[]
+  invoiceItems    InvoiceItem[]
+  memberAccounts  MemberAccount[]
+  payments        Payment[]
+  transactions    Transaction[]
+  users           User[]
+  UserMemberships UserMemberships[]
+}
+
+model User {
+  id              String            @id @default(cuid())
+  email           String            @unique
+  name            String?
+  password        String
+  role            UserRole          @default(MEMBER)
+  organizationId  String
+  memberStatus    MembershipStatus  @default(ACTIVE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  address         String?
+  birthDate       DateTime?
+  gender          String?
+  isStaff         Boolean?          @default(false)
+  joinDate        DateTime?
+  lastFlight      DateTime?
+  memberNumber    String?           @unique
+  phone           String?
+  photo_url       String?
+  bookings        Booking[]
+  invoices        Invoice[]
+  memberAccount   MemberAccount?
+  payments        Payment[]
+  transactions    Transaction[]
+  organization    Organization      @relation(fields: [organizationId], references: [id])
+  UserMemberships UserMemberships[]
+  pilotDetails    UserPilotDetails?
+
+  @@index([organizationId])
+  @@index([memberNumber])
+}
+
+model Booking {
+  id             String       @id @default(cuid())
+  startTime      DateTime
+  endTime        DateTime
+  aircraft       String
+  userId         String
+  organizationId String
+  status         String       @default("PENDING")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  user           User         @relation(fields: [userId], references: [id])
+}
+
+model Invoice {
+  id               String        @id @default(cuid())
+  dueDate          DateTime
+  userId           String
+  organizationId   String
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  invoiceNumber    String?       @unique
+  issuedDate       DateTime      @default(now())
+  notes            String?
+  paidDate         DateTime?
+  subtotal         Float
+  tax              Float
+  total            Float
+  status           InvoiceStatus @default(DRAFT)
+  reference        String?
+  amountPaid       Float?        @default(0)
+  balanceRemaining Float?        @default(dbgenerated("(total - \"amountPaid\")"))
+  organization     Organization  @relation(fields: [organizationId], references: [id])
+  user             User          @relation(fields: [userId], references: [id])
+  items            InvoiceItem[]
+  payments         Payment[]
+
+  @@index([organizationId])
+  @@index([userId])
+}
+
+model InvoiceItem {
+  id             String       @id @default(dbgenerated("gen_random_uuid()"))
+  quantity       Int
+  unitPrice      Float
+  /// @db.comment("Tax rate as a decimal (e.g., 0.15 for 15%)")
+  tax            Float        @default(0.15)
+  total          Float
+  description    String?
+  invoiceId      String
+  chargeableId   String
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @default(now()) @updatedAt
+  organizationId String
+  subTotal       Float?
+  chargeable     Chargeable   @relation(fields: [chargeableId], references: [id])
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id])
+  organization   Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([invoiceId])
+  @@index([chargeableId])
+  @@index([organizationId])
+}
+
+model Chargeable {
+  id               String         @id @default(cuid())
+  name             String
+  description      String?
+  type             ChargeableType
+  /// @db.comment("Price excluding tax")
+  unitPrice        Float
+  /// @db.comment("Tax rate as a decimal (e.g., 0.15 for 15%)")
+  taxRate          Float          @default(0.15)
+  isActive         Boolean        @default(true)
+  organizationId   String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  /// @db.comment("Price including tax - this is what users input")
+  unitPriceInclTax Float
+  organization     Organization   @relation(fields: [organizationId], references: [id])
+  invoiceItems     InvoiceItem[]
+
+  @@index([organizationId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  amount         Float
+  method         PaymentMethod
+  reference      String?
+  notes          String?
+  status         PaymentStatus @default(PENDING)
+  processedAt    DateTime?
+  invoiceId      String?
+  userId         String
+  organizationId String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  invoice        Invoice?      @relation(fields: [invoiceId], references: [id])
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+  transaction    Transaction?
+
+  @@index([invoiceId])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+model MemberAccount {
+  id             String        @id @default(cuid())
+  balance        Float         @default(0)
+  userId         String        @unique
+  organizationId String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id])
+  user           User          @relation(fields: [userId], references: [id])
+  transactions   Transaction[]
+
+  @@index([organizationId])
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  type            TransactionType
+  amount          Float
+  balanceAfter    Float
+  description     String
+  status          TransactionStatus @default(PENDING)
+  memberAccountId String
+  paymentId       String?           @unique
+  userId          String
+  organizationId  String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  receipt_number  String?           @unique @default(dbgenerated("('R-'::text || to_char(nextval('transaction_receipt_number_seq'::regclass), 'FM000000'::text))"))
+  memberAccount   MemberAccount     @relation(fields: [memberAccountId], references: [id])
+  organization    Organization      @relation(fields: [organizationId], references: [id])
+  payment         Payment?          @relation(fields: [paymentId], references: [id])
+  user            User              @relation(fields: [userId], references: [id])
+
+  @@index([memberAccountId])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+model member_number_sequences {
+  organizationId String @id
+  last_number    Int?   @default(0)
+}
+
+model UserPilotDetails {
+  id              String       @id @default(cuid())
+  userId          String       @unique
+  caaClientNumber String?
+  licenceType     LicenceType?
+  typeRatings     String[]     @default([])
+  class1Expiry    DateTime?
+  class2Expiry    DateTime?
+  dl9Expiry       DateTime?
+  bfrExpiry       DateTime?
+  endorsements    String[]     @default([])
+  primeRatings    String[]     @default([])
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model UserMemberships {
+  id             String           @id @default(dbgenerated("(gen_random_uuid())::text"))
+  user_id        String
+  organizationId String
+  membershipType MembershipType
+  status         MembershipStatus
+  startDate      DateTime         @default(now()) @db.Timestamptz(6)
+  expiryDate     DateTime?        @db.Timestamptz(6)
+  paid           Boolean          @default(false)
+  discount       Decimal?         @default(0.00) @db.Decimal(10, 2)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime         @default(now()) @db.Timestamptz(6)
+  Organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  User           User             @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([startDate, expiryDate], map: "idx_user_memberships_dates")
+  @@index([organizationId], map: "idx_user_memberships_organization")
+  @@index([status], map: "idx_user_memberships_status")
+  @@index([user_id], map: "idx_user_memberships_user_id")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  EXPIRED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum ChargeableType {
+  MEMBERSHIP_FEE
+  FLIGHT_HOUR
+  LANDING_FEE
+  INSTRUCTION
+  EQUIPMENT
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  CREDIT_CARD
+  BANK_TRANSFER
+  VOUCHER
+  ACCOUNT_CREDIT
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  VOIDED
+}
+
+enum TransactionType {
+  PAYMENT
+  REFUND
+  CREDIT
+  DEBIT
+  ADJUSTMENT
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REVERSED
+}
+
+enum MembershipType {
+  FULL
+  STUDENT
+  SOCIAL
+  TEMPORARY
+  HONORARY
+  LIFE
+}
+
+enum LicenceType {
+  PPL_A
+  PPL_H
+  CPL_A
+  CPL_H
+  ATP
+}
