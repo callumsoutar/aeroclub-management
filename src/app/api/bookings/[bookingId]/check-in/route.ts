@@ -6,6 +6,11 @@ import { BookingService } from '@/services/bookings'
 import { DEFAULT_TAX_RATE, INVOICE_DUE_DAYS } from '@/constants/chargeable'
 import { z } from 'zod'
 
+type Context = {
+  params: { bookingId: string }
+  searchParams: { [key: string]: string | string[] | undefined }
+}
+
 // Validation schema for request body
 const checkInSchema = z.object({
   startTacho: z.number().nonnegative(),
@@ -27,8 +32,8 @@ const checkInSchema = z.object({
 })
 
 export async function POST(
-  req: Request,
-  { params }: { params: { bookingId: string } }
+  request: Request,
+  context: Context
 ): Promise<Response> {
   try {
     const cookieStore = cookies()
@@ -39,7 +44,7 @@ export async function POST(
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
-    const body = await req.json()
+    const body = await request.json()
     
     // Log the received body for debugging
     console.log('Received request body:', body)
@@ -76,7 +81,7 @@ export async function POST(
       additionalInvoiceItems 
     } = validatedData
 
-    const { bookingId } = params
+    const { bookingId } = context.params
 
     // Verify user has access to this organization's booking
     try {
