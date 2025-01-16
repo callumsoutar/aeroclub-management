@@ -14,74 +14,50 @@ interface InvoiceViewPageProps {
   params: {
     invoiceId: string;
   };
+  searchParams: { [key: string]: string | string[] | undefined };
 }
 
-export default async function InvoiceViewPage({ params }: InvoiceViewPageProps) {
-  const invoiceId = await params.invoiceId;
-
+export default async function InvoiceViewPage({ 
+  params: { invoiceId }
+}: InvoiceViewPageProps) {
   const invoice = await db.invoice.findUnique({
-    where: {
-      id: invoiceId,
-    },
-    select: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      userId: true,
-      organizationId: true,
-      status: true,
-      dueDate: true,
-      invoiceNumber: true,
-      issuedDate: true,
-      notes: true,
-      subtotal: true,
-      tax: true,
-      total: true,
-      reference: true,
-      balanceRemaining: true,
-      user: {
-        select: {
-          name: true,
-          email: true,
-        },
-      },
-      organization: {
-        select: {
-          name: true,
-        },
-      },
+    where: { id: invoiceId },
+    include: {
+      organization: true,
+      user: true,
       items: {
-        select: {
-          id: true,
-          quantity: true,
-          unitPrice: true,
+        include: {
           chargeable: {
             select: {
               name: true,
-              description: true,
-            },
-          },
-        },
+              description: true
+            }
+          }
+        }
       },
-      payments: {
-        select: {
-          id: true,
-          amount: true,
-          method: true,
-          reference: true,
-          notes: true,
-          status: true,
-          processedAt: true,
-          createdAt: true,
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-      },
-    },
+      payments: true
+    }
   });
 
-  if (!invoice) {
+  const formattedInvoice = invoice ? {
+    ...invoice,
+    subtotal: Number(invoice.subtotal),
+    tax: Number(invoice.tax),
+    total: Number(invoice.total),
+    balanceRemaining: invoice.balanceRemaining ? Number(invoice.balanceRemaining) : null,
+    items: invoice.items.map(item => ({
+      id: item.id,
+      quantity: item.quantity,
+      unitPrice: Number(item.unitPrice),
+      chargeable: item.chargeable
+    })),
+    payments: invoice.payments.map(payment => ({
+      ...payment,
+      amount: Number(payment.amount)
+    }))
+  } : null;
+
+  if (!formattedInvoice) {
     return null;
   }
 
@@ -117,17 +93,17 @@ export default async function InvoiceViewPage({ params }: InvoiceViewPageProps) 
             </DropdownMenuContent>
           </DropdownMenu>
 
-          {invoice.status !== "PAID" && (
+          {formattedInvoice.status !== "PAID" && (
             <AddPaymentButton
-              invoiceId={invoice.id}
-              invoiceNumber={invoice.invoiceNumber || ""}
-              balanceDue={invoice.balanceRemaining ?? invoice.total}
+              invoiceId={formattedInvoice.id}
+              invoiceNumber={formattedInvoice.invoiceNumber || ""}
+              balanceDue={formattedInvoice.balanceRemaining ?? formattedInvoice.total}
             />
           )}
         </div>
       </div>
 
-      <InvoiceDetails invoice={invoice} />
+      <InvoiceDetails invoice={formattedInvoice} />
     </div>
   );
 } 
