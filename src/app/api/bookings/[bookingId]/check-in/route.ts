@@ -1,16 +1,10 @@
 import { cookies } from 'next/headers'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { BookingService } from '@/services/bookings'
 import { DEFAULT_TAX_RATE, INVOICE_DUE_DAYS } from '@/constants/chargeable'
 import { z } from 'zod'
-
-type RouteContext = {
-  params: {
-    bookingId: string
-  }
-}
 
 // Validation schema for request body
 const checkInSchema = z.object({
@@ -33,9 +27,9 @@ const checkInSchema = z.object({
 })
 
 export async function POST(
-  req: NextRequest,
-  { params }: RouteContext
-) {
+  req: Request,
+  { params }: { params: { bookingId: string } }
+): Promise<Response> {
   try {
     const cookieStore = cookies()
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
