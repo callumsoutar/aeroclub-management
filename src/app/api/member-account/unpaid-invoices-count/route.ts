@@ -4,12 +4,12 @@ import { cookies } from "next/headers"
 import { db } from "@/lib/db"
 import { InvoiceStatus } from "@prisma/client"
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
     const supabase = createRouteHandlerClient({ 
       cookies: () => cookies() 
     })
-    const { searchParams } = new URL(req.url)
+    const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
 
     if (!userId) {

@@ -3,9 +3,11 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 import { db } from "@/lib/db"
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const supabase = createRouteHandlerClient({ 
+      cookies: () => cookies() 
+    })
     const { data: { session } } = await supabase.auth.getSession()
 
     if (!session) {
@@ -13,7 +15,7 @@ export async function GET(req: Request) {
     }
 
     // Get userId from query params
-    const { searchParams } = new URL(req.url)
+    const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId") || session.user.id
 
     const memberAccount = await db.memberAccount.findUnique({

@@ -2,13 +2,16 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
 export async function GET(
-  request: Request,
-  { params }: { params: { invoiceId: string } }
+  request: Request
 ) {
   try {
+    // Get invoiceId from URL
+    const url = new URL(request.url)
+    const invoiceId = url.pathname.split('/')[3]
+
     const paymentData = await db.payment.findFirst({
       where: {
-        invoiceId: params.invoiceId,
+        invoiceId: invoiceId,
       },
       include: {
         user: {

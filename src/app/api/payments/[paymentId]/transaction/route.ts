@@ -4,19 +4,20 @@ import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 
 export async function GET(
-  request: Request,
-  { params }: { params: { paymentId: string } }
+  request: Request
 ) {
   try {
-    // Get the payment ID from the URL and await params
-    const paymentId = await Promise.resolve(params.paymentId);
+    // Get the payment ID from the URL
+    const url = new URL(request.url)
+    const paymentId = url.pathname.split('/')[3]
+    
     if (!paymentId) {
       return NextResponse.json({ error: "Payment ID is required" }, { status: 400 });
     }
 
     // Create Supabase client
     const supabase = createRouteHandlerClient({ 
-      cookies: () => Promise.resolve(cookies()) 
+      cookies: () => cookies()
     });
 
     // Get session

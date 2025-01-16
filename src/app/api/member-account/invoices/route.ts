@@ -5,7 +5,9 @@ import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
+    const supabase = createRouteHandlerClient({ 
+      cookies: () => cookies() 
+    })
     
     // Get the current session
     const { data: { session }, error: sessionError } = await supabase.auth.getSession()
