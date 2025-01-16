@@ -6,11 +6,6 @@ import { BookingService } from '@/services/bookings'
 import { DEFAULT_TAX_RATE, INVOICE_DUE_DAYS } from '@/constants/chargeable'
 import { z } from 'zod'
 
-type Context = {
-  params: { bookingId: string }
-  searchParams: { [key: string]: string | string[] | undefined }
-}
-
 // Validation schema for request body
 const checkInSchema = z.object({
   startTacho: z.number().nonnegative(),
@@ -32,9 +27,8 @@ const checkInSchema = z.object({
 })
 
 export async function POST(
-  request: Request,
-  context: Context
-): Promise<Response> {
+  request: Request
+) {
   try {
     const cookieStore = cookies()
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
@@ -43,6 +37,10 @@ export async function POST(
     if (!session) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
+
+    // Get bookingId from URL
+    const url = new URL(request.url)
+    const bookingId = url.pathname.split('/')[3]
 
     const body = await request.json()
     
@@ -80,8 +78,6 @@ export async function POST(
       organizationId,
       additionalInvoiceItems 
     } = validatedData
-
-    const { bookingId } = context.params
 
     // Verify user has access to this organization's booking
     try {
