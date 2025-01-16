@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { BookingService } from '@/services/bookings'
 import { DEFAULT_TAX_RATE, INVOICE_DUE_DAYS } from '@/constants/chargeable'
@@ -27,8 +27,8 @@ const checkInSchema = z.object({
 })
 
 export async function POST(
-  request: Request,
-  { params }: { params: { bookingId: string } }
+  request: NextRequest,
+  context: { params: { bookingId: string } }
 ) {
   try {
     const cookieStore = cookies()
@@ -76,7 +76,7 @@ export async function POST(
       additionalInvoiceItems 
     } = validatedData
 
-    const { bookingId } = params
+    const { bookingId } = context.params
 
     // Verify user has access to this organization's booking
     try {
