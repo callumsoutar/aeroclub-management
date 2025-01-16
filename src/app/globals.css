@@ -70,3 +70,141 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Floating airplane animation */
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
+  }
+
+  /* Progress bar animation */
+  .animate-progress {
+    animation: progress 2s ease-in-out infinite;
+  }
+
+  /* Cloud animations */
+  .cloud-1 {
+    animation: cloud-move-1 15s linear infinite;
+  }
+
+  .cloud-2 {
+    animation: cloud-move-2 20s linear infinite;
+  }
+
+  .cloud-3 {
+    animation: cloud-move-3 18s linear infinite;
+  }
+
+  /* Success animations */
+  .animate-success-appear {
+    animation: success-appear 0.5s ease-out forwards;
+  }
+
+  .animate-success-check {
+    animation: success-check 0.5s ease-out forwards;
+  }
+
+  /* Flying status badge animations */
+  .animate-badge-pulse {
+    animation: badge-pulse 3s ease-in-out infinite;
+  }
+
+  .animate-badge-plane {
+    animation: badge-plane-float 4s ease-in-out infinite;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(-45deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(-45deg);
+  }
+}
+
+@keyframes progress {
+  0% {
+    width: 0%;
+    opacity: 1;
+  }
+  50% {
+    width: 100%;
+    opacity: 0.5;
+  }
+  100% {
+    width: 0%;
+    opacity: 1;
+  }
+}
+
+@keyframes cloud-move-1 {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(100vw + 4rem));
+  }
+}
+
+@keyframes cloud-move-2 {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-100vw - 5rem));
+  }
+}
+
+@keyframes cloud-move-3 {
+  from {
+    transform: translateX(-50%) translateX(0);
+  }
+  to {
+    transform: translateX(-50%) translateX(calc(100vw + 3rem));
+  }
+}
+
+@keyframes success-appear {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes success-check {
+  from {
+    opacity: 0;
+    transform: scale(0.8) rotate(-45deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes badge-pulse {
+  0%, 100% {
+    opacity: 1;
+    background-color: rgba(186, 230, 253, 1);
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    background-color: rgba(125, 211, 252, 0.8);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes badge-plane-float {
+  0%, 100% {
+    transform: translateY(0) translateX(0) rotate(0);
+  }
+  50% {
+    transform: translateY(-2px) translateX(3px) rotate(-5deg);
+  }
+}

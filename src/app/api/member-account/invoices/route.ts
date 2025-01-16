@@ -1,47 +1,80 @@
 import { NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
 import { db } from "@/lib/db"
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies } from 'next/headers'
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
     const supabase = createRouteHandlerClient({ cookies })
-    const { data: { session } } = await supabase.auth.getSession()
-
-    if (!session) {
-      return new NextResponse("Unauthorized", { status: 401 })
+    
+    // Get the current session
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    
+    if (sessionError) {
+      console.error("Session error:", sessionError)
+      return NextResponse.json(
+        { error: "Authentication error" },
+        { status: 401 }
+      )
     }
 
-    // Get userId from query params
-    const { searchParams } = new URL(req.url)
-    const userId = searchParams.get("userId")
-
-    if (!userId) {
-      return new NextResponse("User ID is required", { status: 400 })
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      )
     }
 
-    // Get invoices for the user
+    const { searchParams } = new URL(request.url)
+    const page = parseInt(searchParams.get("page") || "1")
+    const limit = parseInt(searchParams.get("limit") || "5")
+    const offset = (page - 1) * limit
+
+    // Get the organization ID from the user's metadata
+    const organizationId = session.user.user_metadata?.organizationId
+
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: "Organization not found" },
+        { status: 400 }
+      )
+    }
+
+    // Get total count for the organization
+    const totalCount = await db.invoice.count({
+      where: {
+        organizationId: organizationId,
+      },
+    })
+
+    // Get paginated invoices for the organization
     const invoices = await db.invoice.findMany({
       where: {
-        userId: userId,
+        organizationId: organizationId,
       },
-      select: {
-        id: true,
-        invoiceNumber: true,
-        status: true,
-        total: true,
-        balanceRemaining: true,
-        dueDate: true,
-        createdAt: true,
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
+      take: limit,
+      skip: offset,
     })
 
-    return NextResponse.json({ invoices })
+    return NextResponse.json({
+      invoices,
+      totalCount,
+    })
   } catch (error) {
-    console.error("[MEMBER_INVOICES]", error)
-    return new NextResponse("Internal Error", { status: 500 })
+    console.error("Error fetching invoices:", error)
+    return NextResponse.json(
+      { error: "Failed to fetch invoices" },
+      { status: 500 }
+    )
   }
 } 

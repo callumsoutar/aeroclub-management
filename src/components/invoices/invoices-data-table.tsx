@@ -28,6 +28,22 @@ import { format } from "date-fns"
 import Link from "next/link"
 
 // Define the Invoice type based on our Prisma schema
+interface DatabaseUser {
+  name: string | null
+}
+
+interface DatabaseInvoice {
+  id: string
+  invoiceNumber: string
+  status: "DRAFT" | "PENDING" | "PAID" | "OVERDUE" | "CANCELLED"
+  dueDate: string
+  issuedDate: string
+  total: number
+  userId: string
+  organizationId: string
+  User: DatabaseUser | null
+}
+
 interface Invoice {
   id: string
   invoiceNumber: string
@@ -35,6 +51,8 @@ interface Invoice {
   dueDate: Date
   issuedDate: Date
   total: number
+  userId: string
+  organizationId: string
   user: {
     name: string | null
   }
@@ -124,6 +142,7 @@ interface InvoicesDataTableProps {
 }
 
 export function InvoicesDataTable({ status }: InvoicesDataTableProps) {
+  const [role, setRole] = useState<string | null>(null)
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [data, setData] = useState<Invoice[]>([])
@@ -131,85 +150,158 @@ export function InvoicesDataTable({ status }: InvoicesDataTableProps) {
   const [error, setError] = useState<string | null>(null)
   const supabase = createClientComponentClient()
 
+  // Separate useEffect for role fetching
   useEffect(() => {
-    const fetchInvoices = async () => {
+    const fetchUserRole = async () => {
       try {
-        setLoading(true)
-        setError(null)
-
-        // First get the current user's session
+        console.log('Fetching user role...')
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
         if (sessionError) {
-          console.error('Session error:', sessionError);
+          console.error('Session error:', sessionError)
+          throw sessionError
+        }
+
+        if (!session?.user) {
+          console.error('No user in session')
+          throw new Error('No authenticated user')
+        }
+
+        console.log('User ID:', session.user.id)
+        
+        const { data: user, error: userError } = await supabase
+          .from('User')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        if (userError) {
+          console.error('Error fetching user role:', userError)
+          throw userError
+        }
+
+        console.log('Fetched user role:', user?.role)
+        setRole(user?.role || null)
+      } catch (err) {
+        console.error('Error in fetchUserRole:', err)
+        setError(err instanceof Error ? err.message : 'Failed to fetch user role')
+      }
+    }
+
+    fetchUserRole()
+  }, [supabase])
+
+  // Separate useEffect for invoice fetching
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      try {
+        console.log('Current role:', role)
+        
+        if (!role) {
+          console.log('Role not yet set, waiting...')
+          return
+        }
+
+        setLoading(true)
+        setError(null)
+
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError) {
+          console.error('Session error:', sessionError)
           throw new Error('Failed to get session')
         }
 
         if (!session?.user) {
-          console.error('No user in session:', session);
+          console.error('No user in session')
           throw new Error('No authenticated user')
         }
 
         const organizationId = session.user.user_metadata?.organizationId
-        console.log('Current user organizationId:', organizationId);
+        console.log('Organization ID:', organizationId)
 
         if (!organizationId) {
-          console.error('No organizationId in metadata:', session.user.user_metadata);
+          console.error('No organizationId in metadata')
           throw new Error('No organization found')
         }
 
-        // First fetch just the invoices
-        const { data: invoices, error: invoicesError } = await supabase
+        console.log('Fetching invoices for organization:', organizationId)
+        
+        // Debug query parameters
+        console.log('Query parameters:', {
+          organizationId,
+          userId: session.user.id,
+          role
+        })
+        
+        let query = supabase
           .from('Invoice')
-          .select('id, invoiceNumber, status, dueDate, issuedDate, total, userId')
+          .select(`
+            id,
+            invoiceNumber,
+            status,
+            dueDate,
+            issuedDate,
+            total,
+            userId,
+            organizationId,
+            User (
+              name
+            )
+          `)
           .eq('organizationId', organizationId)
-          .order('issuedDate', { ascending: false });
+
+        // If user is a MEMBER, only show their invoices
+        if (role === 'MEMBER') {
+          query = query.eq('userId', session.user.id)
+        }
+
+        // Add ordering
+        const { data, error: invoicesError } = await query.order('issuedDate', { ascending: false })
 
         if (invoicesError) {
-          console.error('Invoice fetch error:', invoicesError);
-          throw invoicesError;
+          console.error('Invoice fetch error:', invoicesError)
+          console.error('Error details:', {
+            message: invoicesError.message,
+            details: invoicesError.details,
+            hint: invoicesError.hint
+          })
+          throw invoicesError
         }
+
+        const invoices = data as unknown as DatabaseInvoice[]
+        console.log('Raw invoice data:', invoices)
+        console.log('Fetched invoices:', invoices?.length || 0)
 
         if (!invoices) {
-          setData([]);
-          return;
+          setData([])
+          return
         }
 
-        // Then fetch the current user's details only
-        const { data: currentUser, error: userError } = await supabase
-          .from('User')
-          .select('id, name')
-          .eq('id', session.user.id)
-          .single();
-
-        if (userError) {
-          console.error('User fetch error:', userError);
-          throw userError;
-        }
-
-        // Transform the data using the current user's name
-        const transformedData = invoices.map(invoice => ({
+        const transformedData: Invoice[] = invoices.map(invoice => ({
           id: invoice.id,
           invoiceNumber: invoice.invoiceNumber,
           status: invoice.status,
           dueDate: new Date(invoice.dueDate),
           issuedDate: new Date(invoice.issuedDate),
           total: invoice.total,
+          userId: invoice.userId,
+          organizationId: invoice.organizationId,
           user: {
-            name: currentUser.name || 'Unknown'
+            name: invoice.User?.name ?? 'Unknown'
           }
-        }));
+        }))
 
-        setData(transformedData);
+        console.log('Setting transformed data:', transformedData.length)
+        setData(transformedData)
       } catch (err) {
-        console.error('Error fetching invoices:', err)
+        console.error('Error in fetchInvoices:', err)
         setError(err instanceof Error ? err.message : 'Failed to fetch invoices')
       } finally {
         setLoading(false)
       }
     }
 
-    // Initial fetch
     fetchInvoices()
 
     // Set up real-time subscription for the organization's invoices
@@ -218,6 +310,7 @@ export function InvoicesDataTable({ status }: InvoicesDataTableProps) {
       const organizationId = session?.user?.user_metadata?.organizationId
 
       if (organizationId) {
+        console.log('Setting up real-time subscription for organization:', organizationId)
         const channel = supabase
           .channel('invoice-changes')
           .on(
@@ -229,19 +322,23 @@ export function InvoicesDataTable({ status }: InvoicesDataTableProps) {
               filter: `organizationId=eq.${organizationId}`
             },
             () => {
+              console.log('Received real-time update, fetching invoices...')
               fetchInvoices()
             }
           )
           .subscribe()
 
         return () => {
+          console.log('Cleaning up subscription')
           supabase.removeChannel(channel)
         }
       }
     }
 
-    setupSubscription()
-  }, [supabase])
+    if (role === 'ADMIN' || role === 'OWNER') {
+      setupSubscription()
+    }
+  }, [supabase, role])
 
   // Filter data based on status if provided
   const filteredData = status ? data.filter(invoice => invoice.status === status) : data

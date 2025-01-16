@@ -12,7 +12,8 @@ model Organization {
   name            String
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
-  bookings        Booking[]
+  AircraftRates   AircraftRates[]
+  Booking         Booking[]
   chargeables     Chargeable[]
   invoices        Invoice[]
   invoiceItems    InvoiceItem[]
@@ -24,49 +25,68 @@ model Organization {
 }
 
 model User {
-  id              String            @id @default(cuid())
-  email           String            @unique
-  name            String?
-  password        String
-  role            UserRole          @default(MEMBER)
-  organizationId  String
-  memberStatus    MembershipStatus  @default(ACTIVE)
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  address         String?
-  birthDate       DateTime?
-  gender          String?
-  isStaff         Boolean?          @default(false)
-  joinDate        DateTime?
-  lastFlight      DateTime?
-  memberNumber    String?           @unique
-  phone           String?
-  photo_url       String?
-  bookings        Booking[]
-  invoices        Invoice[]
-  memberAccount   MemberAccount?
-  payments        Payment[]
-  transactions    Transaction[]
-  organization    Organization      @relation(fields: [organizationId], references: [id])
-  UserMemberships UserMemberships[]
-  pilotDetails    UserPilotDetails?
+  id                                  String            @id @default(cuid())
+  email                               String            @unique
+  name                                String?
+  password                            String
+  role                                UserRole          @default(MEMBER)
+  organizationId                      String
+  memberStatus                        MembershipStatus  @default(ACTIVE)
+  createdAt                           DateTime          @default(now())
+  updatedAt                           DateTime          @updatedAt
+  address                             String?
+  birthDate                           DateTime?
+  gender                              String?
+  isStaff                             Boolean?          @default(false)
+  joinDate                            DateTime?
+  lastFlight                          DateTime?
+  memberNumber                        String?           @unique
+  phone                               String?
+  photo_url                           String?
+  Booking_Booking_instructor_idToUser Booking[]         @relation("Booking_instructor_idToUser")
+  Booking_Booking_user_idToUser       Booking[]         @relation("Booking_user_idToUser")
+  invoices                            Invoice[]
+  memberAccount                       MemberAccount?
+  payments                            Payment[]
+  transactions                        Transaction[]
+  organization                        Organization      @relation(fields: [organizationId], references: [id])
+  UserMemberships                     UserMemberships[]
+  pilotDetails                        UserPilotDetails?
 
   @@index([organizationId])
   @@index([memberNumber])
 }
 
 model Booking {
-  id             String       @id @default(cuid())
-  startTime      DateTime
-  endTime        DateTime
-  aircraft       String
-  userId         String
-  organizationId String
-  status         String       @default("PENDING")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  user           User         @relation(fields: [userId], references: [id])
+  id                               String              @id @default(dbgenerated("(gen_random_uuid())::text"))
+  aircraft_id                      String?
+  instructor_id                    String?
+  user_id                          String?
+  type                             BookingType
+  status                           BookingStatus?      @default(unconfirmed)
+  description                      String?
+  flight_type_id                   String?
+  lesson_id                        String?
+  booking_flight_times_id          String?
+  booking_details_id               String?
+  organization_id                  String
+  created_at                       DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at                       DateTime?           @default(now()) @db.Timestamptz(6)
+  startTime                        DateTime?           @db.Timestamptz(6)
+  endTime                          DateTime?           @db.Timestamptz(6)
+  Aircraft                         Aircraft?           @relation(fields: [aircraft_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  BookingDetails                   BookingDetails?     @relation(fields: [booking_details_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  BookingFlightTimes               BookingFlightTimes? @relation(fields: [booking_flight_times_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  FlightTypes                      FlightTypes?        @relation(fields: [flight_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User_Booking_instructor_idToUser User?               @relation("Booking_instructor_idToUser", fields: [instructor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Lesson                           Lesson?             @relation(fields: [lesson_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Organization                     Organization        @relation(fields: [organization_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  User_Booking_user_idToUser       User?               @relation("Booking_user_idToUser", fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([aircraft_id], map: "idx_booking_aircraft")
+  @@index([instructor_id], map: "idx_booking_instructor")
+  @@index([organization_id], map: "idx_booking_organization")
+  @@index([user_id], map: "idx_booking_user")
 }
 
 model Invoice {
@@ -85,8 +105,8 @@ model Invoice {
   total            Float
   status           InvoiceStatus @default(DRAFT)
   reference        String?
-  amountPaid       Float?        @default(0)
-  balanceRemaining Float?        @default(dbgenerated("(total - \"amountPaid\")"))
+  amountPaid       Decimal       @default(0.00) @db.Decimal(10, 2)
+  balanceRemaining Decimal?      @default(dbgenerated("(total - (\"amountPaid\")::double precision)")) @db.Decimal(10, 2)
   organization     Organization  @relation(fields: [organizationId], references: [id])
   user             User          @relation(fields: [userId], references: [id])
   items            InvoiceItem[]
@@ -246,6 +266,108 @@ model UserMemberships {
   @@index([user_id], map: "idx_user_memberships_user_id")
 }
 
+model Aircraft {
+  id              String            @id @default(dbgenerated("(gen_random_uuid())::text"))
+  registration    String
+  type_id         String?
+  status          AircraftStatus?   @default(active)
+  photo_url       String?
+  record_hobbs    Boolean?          @default(false)
+  record_tacho    Boolean?          @default(false)
+  created_at      DateTime?         @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime?         @default(now()) @db.Timestamptz(6)
+  AircraftTypes   AircraftTypes?    @relation(fields: [type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  AircraftRates   AircraftRates[]
+  AircraftTechLog AircraftTechLog[]
+  Booking         Booking[]
+
+  @@index([type_id], map: "idx_aircraft_type")
+}
+
+model AircraftTechLog {
+  id            String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  aircraft_id   String?
+  current_tacho Decimal?  @db.Decimal
+  current_hobbs Decimal?  @db.Decimal
+  engine_hours  Decimal?  @db.Decimal
+  created_at    DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime? @default(now()) @db.Timestamptz(6)
+  Aircraft      Aircraft? @relation(fields: [aircraft_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([aircraft_id], map: "idx_techlog_aircraft")
+}
+
+model AircraftTypes {
+  id         String     @id @default(dbgenerated("(gen_random_uuid())::text"))
+  type       String
+  model      String
+  year       String?
+  created_at DateTime?  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime?  @default(now()) @db.Timestamptz(6)
+  Aircraft   Aircraft[]
+}
+
+model BookingDetails {
+  id                 String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  route              String?
+  eta                DateTime? @db.Time(6)
+  comments           String?
+  instructor_comment String?
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime? @default(now()) @db.Timestamptz(6)
+  passengers         String?
+  Booking            Booking[]
+}
+
+model BookingFlightTimes {
+  id          String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  start_tacho Decimal?  @db.Decimal
+  end_tacho   Decimal?  @db.Decimal
+  start_hobbs Decimal?  @db.Decimal
+  end_hobbs   Decimal?  @db.Decimal
+  flight_time Decimal?  @db.Decimal
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+  Booking     Booking[]
+}
+
+model FlightTypes {
+  id            String          @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name          String
+  description   String?
+  created_at    DateTime?       @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?       @default(now()) @db.Timestamptz(6)
+  AircraftRates AircraftRates[]
+  Booking       Booking[]
+}
+
+model Lesson {
+  id          String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name        String
+  description String?
+  duration    Decimal?  @db.Decimal
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime? @default(now()) @db.Timestamptz(6)
+  Booking     Booking[]
+}
+
+model AircraftRates {
+  id              String        @id(map: "aircraft_rates_pkey") @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aircraft_id     String?
+  rate            Decimal       @db.Decimal(10, 2)
+  flight_type_id  String?
+  organization_id String?
+  created_at      DateTime?     @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime?     @default(now()) @db.Timestamptz(6)
+  Aircraft        Aircraft?     @relation(fields: [aircraft_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "aircraft_rates_aircraft_id_fkey")
+  FlightTypes     FlightTypes?  @relation(fields: [flight_type_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "aircraft_rates_flight_type_id_fkey")
+  Organization    Organization? @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "aircraft_rates_organization_id_fkey")
+
+  @@index([aircraft_id], map: "idx_aircraft_rates_aircraft")
+  @@index([flight_type_id], map: "idx_aircraft_rates_flight_type")
+  @@index([organization_id], map: "idx_aircraft_rates_organization")
+}
+
 enum UserRole {
   OWNER
   ADMIN
@@ -273,6 +395,7 @@ enum ChargeableType {
   INSTRUCTION
   EQUIPMENT
   OTHER
+  AIRWAYS_FEE
 }
 
 enum PaymentMethod {
@@ -322,4 +445,26 @@ enum LicenceType {
   CPL_A
   CPL_H
   ATP
+}
+
+enum AircraftStatus {
+  active
+  maintenance
+  inactive
+}
+
+enum BookingStatus {
+  unconfirmed
+  confirmed
+  flying
+  inProgress
+  complete
+  cancelled
+}
+
+enum BookingType {
+  groundwork
+  flight
+  maintenance
+  timesheet
 }
