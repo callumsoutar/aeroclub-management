@@ -12,11 +12,12 @@ import { Download, MoreVertical, Printer, Send, User } from "lucide-react";
 
 interface PageProps {
   params: Promise<{ invoiceId: string }>;
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
-export default async function InvoiceViewPage({ params }: PageProps) {
+export default async function InvoiceViewPage({ params, searchParams }: PageProps) {
   const { invoiceId } = await params;
+  await searchParams; // We need to await this even if we don't use it
   
   const invoice = await db.invoice.findUnique({
     where: { id: invoiceId },
