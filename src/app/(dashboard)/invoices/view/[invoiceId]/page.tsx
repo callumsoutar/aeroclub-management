@@ -10,16 +10,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Download, MoreVertical, Printer, Send, User } from "lucide-react";
 
-interface InvoiceViewPageProps {
-  params: {
-    invoiceId: string;
-  };
-  searchParams: { [key: string]: string | string[] | undefined };
+type PageProps = {
+  params: { invoiceId: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
 }
 
-export default async function InvoiceViewPage({ 
-  params: { invoiceId }
-}: InvoiceViewPageProps) {
+export default async function InvoiceViewPage(props: PageProps) {
+  const { invoiceId } = props.params;
+  
   const invoice = await db.invoice.findUnique({
     where: { id: invoiceId },
     include: {
